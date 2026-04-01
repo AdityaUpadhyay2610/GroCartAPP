@@ -21,7 +21,7 @@
 ## 📸 App Screenshots
 
 <p align="center">
-  <img src="screenshots/home_screen.png" width="200" alt="Home Screen" />
+  <img src="[screenshots/home_screen.png](https://github.com/AdityaUpadhyay2610/GroCartAPP/blob/168e92e67ec8499e600b72fdcbcf5839ffcf116f/homescreen.png)" width="200" alt="Home Screen" />
   &nbsp;&nbsp;
   <img src="screenshots/home_screen_detail.png" width="200" alt="Home Screen Detail" />
   &nbsp;&nbsp;
