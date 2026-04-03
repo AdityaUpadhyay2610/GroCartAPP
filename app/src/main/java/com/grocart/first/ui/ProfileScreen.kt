@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,7 +41,6 @@ fun ProfileScreen(
     
     var nameState by remember(user) { mutableStateOf(user?.username ?: "") }
     var emailState by remember(user) { mutableStateOf(user?.email ?: "") }
-    var phoneState by remember { mutableStateOf("+91 9876543210") }
     var addressState by remember { mutableStateOf("Sector-4, GroCart City") }
 
     Column(
@@ -132,13 +130,6 @@ fun ProfileScreen(
                         onValueChange = { emailState = it },
                         label = "Email Address",
                         icon = Icons.Default.Email
-                    )
-
-                    ProfileTextField(
-                        value = phoneState,
-                        onValueChange = { phoneState = it },
-                        label = "Phone Number",
-                        icon = Icons.Default.Phone
                     )
 
                     ProfileTextField(

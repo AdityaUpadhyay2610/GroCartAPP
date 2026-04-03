@@ -107,7 +107,7 @@ fun OrderCard(order: Order) {
             com.grocart.first.data.InternetItemWithQuantity(items.first().toInternetItem(), items.size)
         }
 
-    val orderTotal = order.items.sumOf { it.itemPrice * 75 / 100 }
+    val orderTotal = order.items.sumOf { it.itemPrice }
 
     val context = LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()

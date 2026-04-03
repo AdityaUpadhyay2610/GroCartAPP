@@ -1,21 +1,14 @@
 package com.grocart.first.ui
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,19 +28,23 @@ import com.grocart.first.data.CartItemResponse
 import com.grocart.first.data.InternetItem
 import com.grocart.first.ui.theme.AestheticBackgroundStart
 import com.grocart.first.ui.theme.AestheticBackgroundEnd
-import kotlinx.coroutines.delay
 
 @Composable
 fun CartScreen(
     groViewModel: GroViewModel,
     onHomeButtonClicked: () -> Unit
 ) {
-
     val cartItems by groViewModel.cartItems.collectAsState()
     val showPaymentScreen by groViewModel.showPaymentScreen.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(AestheticBackgroundStart, AestheticBackgroundEnd)))) {
         if (cartItems.isNotEmpty()) {
+
+            val totalPrice = cartItems.sumOf { (it.itemPrice * 75 / 100) * it.quantity }
+            val handlingCharge = (totalPrice * 0.01).toInt()
+            val deliveryFee = 30
+            val grandTotal = totalPrice + handlingCharge + deliveryFee
+
             LazyColumn(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -73,21 +70,15 @@ fun CartScreen(
                     )
                 }
 
-
                 item {
                     Text(
                         text = "Bill Details",
                         fontWeight = FontWeight.Bold,
                         fontSize = 22.sp,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = 8.dp),
                         color = MaterialTheme.colorScheme.onBackground
                     )
                 }
-
-                val totalPrice = cartItems.sumOf { (it.itemPrice * 75 / 100) * it.quantity }
-                val handlingCharge = (totalPrice * 0.01).toInt()
-                val deliveryFee = 30
-                val grandTotal = totalPrice + handlingCharge + deliveryFee
 
                 item {
                     Card(
@@ -138,35 +129,36 @@ fun CartScreen(
                     .background(Color.White)
                     .padding(16.dp)
             ) {
-                val totalPrice = cartItems.sumOf { (it.itemPrice * 75 / 100) * it.quantity }
-                val grandTotal = totalPrice + (totalPrice * 0.01).toInt() + 30
                 Button(
-            onClick = { groViewModel.proceedToPay() },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("Proceed to Pay  •  Rs. $grandTotal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
+                    onClick = { groViewModel.proceedToPay() },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Proceed to Pay  •  Rs. $grandTotal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
         } else {
             EmptyCartUI(onHomeButtonClicked)
         }
 
+        // Payment Method Screen Overlay
         if (showPaymentScreen) {
-            FakePaymentScreen(
-                groViewModel = groViewModel,
-                onPaymentComplete = {
-                    val totalPrice = cartItems.sumOf { (it.itemPrice * 75 / 100) * it.quantity }
-                    val handlingCharge = (totalPrice * 0.01).toInt()
-                    val deliveryFee = 30
-                    val grandTotal = totalPrice + handlingCharge + deliveryFee
+            val paymentTotalPrice = cartItems.sumOf { (it.itemPrice * 75 / 100) * it.quantity }
+            val paymentHandlingCharge = (paymentTotalPrice * 0.01).toInt()
+            val paymentDeliveryFee = 30
 
-                    groViewModel.placeOrder(grandTotal)
+            PaymentMethodScreen(
+                totalPrice = paymentTotalPrice,
+                handlingCharge = paymentHandlingCharge,
+                deliveryFee = paymentDeliveryFee,
+                groViewModel = groViewModel,
+                onPaymentConfirmed = { _, finalTotal, _ ->
                     groViewModel.completePayment()
+                    groViewModel.placeOrder(finalTotal)
                     onHomeButtonClicked()
                 },
-                onPaymentCancelled = { groViewModel.cancelPayment() }
+                onBack = { groViewModel.cancelPayment() }
             )
         }
     }
@@ -272,59 +264,6 @@ fun QuantitySelector(
             modifier = Modifier.size(32.dp)
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add", tint = MaterialTheme.colorScheme.primary)
-        }
-    }
-}
-
-@Composable
-fun FakePaymentScreen(
-    groViewModel: GroViewModel,
-    onPaymentComplete: () -> Unit,
-    onPaymentCancelled: () -> Unit
-) {
-    val countdown by groViewModel.paymentCountdown.collectAsState()
-    var paymentStatus by remember { mutableStateOf("Processing...") }
-    var isPaymentFinished by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        for (i in 5 downTo 1) {
-            groViewModel.setPaymentCountdown(i)
-            delay(1000)
-        }
-        paymentStatus = "Payment Successful!"
-        isPaymentFinished = true
-        delay(1500)
-        onPaymentComplete()
-    }
-
-    Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable(enabled = false) {},
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(0.85f).padding(20.dp), 
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (!isPaymentFinished) {
-                    AnimatedContent(targetState = countdown, label = "") { targetCount ->
-                        Text(text = "$targetCount", fontSize = 56.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
-                    }
-                } else {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF00C853), modifier = Modifier.size(64.dp))
-                }
-                Text(text = paymentStatus, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
-                if (!isPaymentFinished) {
-                    OutlinedButton(
-                        onClick = onPaymentCancelled,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) { 
-                        Text("Cancel Checkout") 
-                    }
-                }
-            }
         }
     }
 }

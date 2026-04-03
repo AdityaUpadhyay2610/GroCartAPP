@@ -7,9 +7,9 @@ import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.LocationOn
@@ -21,11 +21,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -40,7 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -51,8 +51,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,10 +58,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.grocart.first.data.InternetItem
-import com.grocart.first.R
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import com.grocart.first.data.CartItemResponse
 import com.grocart.first.data.DataSource
 
@@ -76,8 +74,6 @@ enum class GroAppScreen(val title: String) {
     Profile("Edit Profile"),
     Category("Categories")
 }
-
-var canNavigateBack = false
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,7 +94,10 @@ fun FirstApp(
         backStackEntry?.destination?.route ?: GroAppScreen.Start.name
     )
 
-    canNavigateBack = navController.previousBackStackEntry != null
+    // Properly observe navigation state instead of using a global variable
+    val canNavigateBack by remember {
+        derivedStateOf { navController.previousBackStackEntry != null }
+    }
 
     if (user == null && !isGuest) {
         LoginUi(groViewModel = groViewModel)
@@ -116,7 +115,12 @@ fun FirstApp(
                 )
             },
             bottomBar = {
-                FirstAppBar(navController = navController, currentScreen = currentScreen, cartItems = cartItems, groViewModel = groViewModel)
+                FirstAppBar(
+                    navController = navController, 
+                    currentScreen = currentScreen, 
+                    cartItems = cartItems, 
+                    groViewModel = groViewModel
+                )
             }
         ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
@@ -165,9 +169,7 @@ fun FirstApp(
                             groViewModel = groViewModel,
                             onItemClick = { item ->
                                 searchQuery = "" // Reset search bar
-
                                 val categoryList = DataSource.loadCategories()
-
                                 val matchedCategory = categoryList.find { cat ->
                                     context.getString(cat.stringResourceId) == item.itemCategory
                                 }
@@ -226,7 +228,7 @@ class CurvedBottomBarShape(
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val path = Path().apply {
             moveTo(0f, cornerRadius)
-            quadraticBezierTo(0f, 0f, cornerRadius, 0f)
+            quadraticTo(0f, 0f, cornerRadius, 0f)
 
             val startCut = cutPosition - cutRadius * 1.6f
             if (startCut > cornerRadius) {
@@ -249,7 +251,7 @@ class CurvedBottomBarShape(
             )
 
             lineTo(size.width - cornerRadius, 0f)
-            quadraticBezierTo(size.width, 0f, size.width, cornerRadius)
+            quadraticTo(size.width, 0f, size.width, cornerRadius)
 
             lineTo(size.width, size.height)
             lineTo(0f, size.height)
@@ -277,102 +279,94 @@ fun FirstAppBar(
         GroAppScreen.Profile to Icons.Filled.AccountCircle
     )
 
+    // Fixed height for the bottom bar container to prevent infinite measurement loops
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .height(76.dp)
+            .height(80.dp)
             .background(Color.Transparent) 
     ) {
-        val widthPx = constraints.maxWidth.toFloat()
+        val widthPx = this.constraints.maxWidth.toFloat()
         val itemWidth = widthPx / tabs.size
         
         val selectedIndex = tabs.indexOfFirst { it.first == currentScreen }.takeIf { it >= 0 } ?: 0
         val cutPosition by animateFloatAsState(
             targetValue = (selectedIndex * itemWidth) + (itemWidth / 2f),
-            animationSpec = spring(dampingRatio = 0.65f, stiffness = androidx.compose.animation.core.Spring.StiffnessLow),
+            animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessLow),
             label = "cutout"
         )
         
-        val cutRadiusPx = with(LocalDensity.current) { 30.dp.toPx() }
-        val cornerRadiusPx = with(LocalDensity.current) { 24.dp.toPx() }
-        
-        // Background shape
-        Box(
+        Surface(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 16.dp)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(65.dp)
                 .graphicsLayer {
-                    shape = CurvedBottomBarShape(cutPosition, cutRadiusPx, cornerRadiusPx)
+                    shape = CurvedBottomBarShape(cutPosition, 32.dp.toPx(), 20.dp.toPx())
                     clip = true
-                }
-                .background(Color(0xFF43A047))
-        )
-        
-        // The unselected icons
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                },
+            color = Color.White,
+            shadowElevation = 12.dp
         ) {
-            tabs.forEachIndexed { index, pair ->
-                val (screen, icon) = pair
-                val isSelected = index == selectedIndex
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            if (screen == GroAppScreen.Orders || screen == GroAppScreen.Profile) {
-                                if (isGuest) {
-                                    showLoginPrompt = true
-                                    return@clickable
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                tabs.forEach { (screen, icon) ->
+                    val isSelected = currentScreen == screen
+                    
+                    IconButton(
+                        onClick = {
+                            if (isGuest && (screen == GroAppScreen.Orders || screen == GroAppScreen.Profile)) {
+                                showLoginPrompt = true
+                            } else {
+                                navController.navigate(screen.name) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                            }
-                            navController.navigate(screen.name) {
-                                if (screen == GroAppScreen.Start) popUpTo(0)
-                                launchSingleTop = true
                             }
                         },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!isSelected) {
-                        BadgedBox(
-                            badge = {
-                                if (screen == GroAppScreen.Cart && cartItems.isNotEmpty()) {
-                                    Badge(containerColor = Color.Red, modifier = Modifier.offset((-8).dp, 8.dp)) { Text(cartItems.size.toString(), color = Color.White) }
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = screen.title,
+                                tint = if (isSelected) Color.Transparent else Color.Gray,
+                                modifier = Modifier.size(26.dp)
+                            )
+                            if (screen == GroAppScreen.Cart && cartItems.isNotEmpty()) {
+                                Badge(
+                                    containerColor = Color.Red,
+                                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)
+                                ) {
+                                    Text(cartItems.size.toString(), color = Color.White, fontSize = 10.sp)
                                 }
                             }
-                        ) {
-                            Icon(imageVector = icon, contentDescription = screen.title, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(24.dp))
                         }
                     }
                 }
             }
         }
-        
-        // The floating circle (selected icon)
+
+        // Floating Action Button for selected item
         Box(
             modifier = Modifier
-                .offset { IntOffset((cutPosition - 30.dp.toPx()).toInt(), (-2).dp.toPx().toInt()) }
-                .size(60.dp)
+                .offset { IntOffset(cutPosition.toInt() - 28.dp.toPx().toInt(), (-12).dp.toPx().toInt()) }
+                .size(56.dp)
                 .clip(CircleShape)
-                .background(Color.White),
+                .background(Color(0xFF7C3AED))
+                .clickable { /* Already on current screen */ },
             contentAlignment = Alignment.Center
         ) {
-            val (selectedScreen, selectedIcon) = tabs[selectedIndex]
-            BadgedBox(
-                badge = {
-                    if (selectedScreen == GroAppScreen.Cart && cartItems.isNotEmpty()) {
-                        Badge(containerColor = Color.Red, modifier = Modifier.offset((-4).dp, 4.dp)) { Text(cartItems.size.toString(), color = Color.White) }
-                    }
-                }
-            ) {
-                Icon(imageVector = selectedIcon, contentDescription = "Selected", tint = Color(0xFF43A047), modifier = Modifier.size(28.dp))
-            }
+            Icon(
+                imageVector = tabs[selectedIndex].second,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
         }
     }
 
@@ -380,18 +374,10 @@ fun FirstAppBar(
         AlertDialog(
             onDismissRequest = { showLoginPrompt = false },
             title = { Text("Login Required") },
-            text = { Text("Please login to access this section.") },
+            text = { Text("Please login to access this feature.") },
             confirmButton = { TextButton(onClick = { groViewModel.endGuestSession(); showLoginPrompt = false }) { Text("Login") } },
             dismissButton = { TextButton(onClick = { showLoginPrompt = false }) { Text("Cancel") } }
         )
-    }
-}
-
-@Composable
-fun AppNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onClick() }) {
-        Icon(icon, label)
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -418,19 +404,17 @@ fun FirstAppTopHeader(
 ) {
     val context = LocalContext.current
     var locationText by remember { mutableStateOf("Fetching location...") }
-    var locationPermissionGranted by remember { 
-        mutableStateOf(
+    
+    val locationPermissionGranted by remember { 
+        derivedStateOf {
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        )
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        locationPermissionGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true || 
-                                    permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-    }
+    ) { _: Map<String, Boolean> -> /* LaunchedEffect handles the update through derivedStateOf */ }
 
     LaunchedEffect(locationPermissionGranted) {
         if (!locationPermissionGranted) {
@@ -439,37 +423,45 @@ fun FirstAppTopHeader(
             )
             locationText = "Location Required"
         } else {
-            try {
-                val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                val providers = locationManager.getProviders(true)
-                var bestLocation: Location? = null
-                for (provider in providers) {
-                    val l = locationManager.getLastKnownLocation(provider) ?: continue
-                    if (bestLocation == null || l.accuracy < bestLocation.accuracy) {
-                        bestLocation = l
+            withContext(Dispatchers.IO) {
+                try {
+                    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                    val providers = locationManager.getProviders(true)
+                    var bestLocation: Location? = null
+                    
+                    for (provider in providers) {
+                        try {
+                            val l = locationManager.getLastKnownLocation(provider) ?: continue
+                            if (bestLocation == null || l.accuracy < bestLocation.accuracy) {
+                                bestLocation = l
+                            }
+                        } catch (e: SecurityException) {
+                            Log.w("LOCATION", "Permission error for provider $provider: ${e.message}")
+                            continue 
+                        }
                     }
-                }
-                
-                if (bestLocation != null) {
-                    withContext(Dispatchers.IO) {
+                    
+                    if (bestLocation != null) {
                         try {
                             val geocoder = Geocoder(context, Locale.getDefault())
                             val addresses = geocoder.getFromLocation(bestLocation.latitude, bestLocation.longitude, 1)
-                            if (addresses != null && addresses.isNotEmpty()) {
-                                val address = addresses[0]
-                                locationText = "${address.subLocality ?: address.locality ?: "Unknown"}, ${address.adminArea ?: ""}"
-                            } else {
-                                locationText = "Location not found"
+                            withContext(Dispatchers.Main) {
+                                if (!addresses.isNullOrEmpty()) {
+                                    val address = addresses[0]
+                                    locationText = "${address.subLocality ?: address.locality ?: "Unknown"}, ${address.adminArea ?: ""}"
+                                } else {
+                                    locationText = "Location not found"
+                                }
                             }
                         } catch (e: Exception) {
-                            locationText = "Location unavailable"
+                            withContext(Dispatchers.Main) { locationText = "Location unavailable" }
                         }
+                    } else {
+                        withContext(Dispatchers.Main) { locationText = "Please enable GPS" }
                     }
-                } else {
-                    locationText = "Please enable GPS"
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) { locationText = "Error getting location" }
                 }
-            } catch (e: SecurityException) {
-                locationText = "Permission denied"
             }
         }
     }
@@ -477,8 +469,11 @@ fun FirstAppTopHeader(
     var menuExpanded by remember { mutableStateOf(false) }
 
     Surface(color = Color.White, shadowElevation = 0.dp) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-            // Location and Profile Row
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().background(Color.Transparent),
                 verticalAlignment = Alignment.CenterVertically
@@ -504,18 +499,9 @@ fun FirstAppTopHeader(
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Drop Down",
-                            tint = Color.Black
-                        )
+                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.Black)
                     }
-                    Text(
-                        text = "Home - $locationText",
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        maxLines = 1
-                    )
+                    Text(text = "Home - $locationText", fontSize = 12.sp, color = Color.Gray, maxLines = 1)
                 }
                 Box {
                     IconButton(onClick = { menuExpanded = true }) {
@@ -549,11 +535,10 @@ fun FirstAppTopHeader(
                 }
             }
 
-            // Search Bar (Only on Start and Item screens)
             if (currentScreen == GroAppScreen.Start || currentScreen == GroAppScreen.Item) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
                     modifier = Modifier.fillMaxWidth().height(50.dp)
                 ) {
@@ -561,18 +546,14 @@ fun FirstAppTopHeader(
                         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search Icon",
-                            tint = Color.Gray
-                        )
+                        Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = Color.Gray)
                         Spacer(modifier = Modifier.width(8.dp))
-                        androidx.compose.foundation.text.BasicTextField(
+                        BasicTextField(
                             value = searchQuery,
                             onValueChange = onSearchQueryChange,
                             singleLine = true,
                             modifier = Modifier.weight(1f),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = Color.Black),
+                            textStyle = TextStyle(fontSize = 16.sp, color = Color.Black),
                             decorationBox = { innerTextField ->
                                 if (searchQuery.isEmpty()) {
                                     Text("Search \"milk\", \"bread\"...", color = Color.Gray, fontSize = 16.sp)
