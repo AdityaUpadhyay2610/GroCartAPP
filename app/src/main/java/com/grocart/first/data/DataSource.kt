@@ -8,7 +8,7 @@ object DataSource {
     val categories: List<Categories> = loadCategories()
     fun loadCategories() :List<Categories>{
         return listOf(
-            Categories(stringResourceId = R.string.fresh_fruits , imageResourceId = R.drawable.fruits),
+            Categories( R.string.fresh_fruits , imageResourceId = R.drawable.fruits),
             Categories( R.string.bread_biscuits,R.drawable.bread),
             Categories( R.string.sweet_tooth,R.drawable.sweet),
             Categories( R.string.bath_body,R.drawable.bathbody),
@@ -16,13 +16,16 @@ object DataSource {
             Categories( R.string.kitchen_essentials,R.drawable.kitchen),
             Categories( R.string.munchies,R.drawable.munchies),
             Categories( R.string.packed_food,R.drawable.packaged),
-            Categories( R.string.sweet_tooth,R.drawable.sweet),
+            Categories( R.string.chocolates,R.drawable.chocolates),
             Categories( R.string.fresh_vegetables,R.drawable.vegetables),
             Categories( R.string.cleaning_essentials,R.drawable.clean),
             Categories( R.string.stationery,R.drawable.stationary),
-            Categories( R.string.pet_food,R.drawable.pet_food)
-
-
+            Categories( R.string.pet_food,R.drawable.pet_food),
+            Categories( R.string.dairy, R.drawable.dairy),
+            Categories( R.string.frozen_food, R.drawable.deserts),
+            Categories( R.string.pharmacy, R.drawable.pharmacy),
+            Categories( R.string.breakfast_cereals, R.drawable.breakfast),
+            Categories( R.string.home_care, R.drawable.decore)
         )
     }
 }

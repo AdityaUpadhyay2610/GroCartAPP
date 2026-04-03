@@ -71,7 +71,7 @@ fun ItemScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(AestheticBackgroundStart, AestheticBackgroundEnd)))) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             contentPadding = PaddingValues(16.dp),

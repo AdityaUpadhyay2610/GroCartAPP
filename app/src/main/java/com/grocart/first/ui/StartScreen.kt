@@ -37,6 +37,7 @@ import com.grocart.first.data.InternetItem
 import coil.compose.AsyncImage
 import com.grocart.first.ui.theme.AestheticBackgroundStart
 import com.grocart.first.ui.theme.AestheticBackgroundEnd
+// Import seasonal logic if needed, but it's in the same package (com.grocart.first.ui)
 import androidx.compose.ui.graphics.Brush
 
 @Composable
@@ -61,7 +62,7 @@ fun StartScreen(
         Color(0xFFE8F5E9)
     )
 
-    Column(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(AestheticBackgroundStart, AestheticBackgroundEnd)))) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(4),
             contentPadding = PaddingValues(bottom = 16.dp),

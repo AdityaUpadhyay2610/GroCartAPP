@@ -23,7 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.interaction.MutableInteractionSource
+
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -49,7 +49,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.platform.LocalDensity
+
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -95,35 +95,49 @@ fun FirstApp(
     )
 
     // Properly observe navigation state instead of using a global variable
-    val canNavigateBack by remember {
-        derivedStateOf { navController.previousBackStackEntry != null }
-    }
+    val canNavigateBack = currentScreen != GroAppScreen.Start
+
+    val showPaymentScreen by groViewModel.showPaymentScreen.collectAsState()
 
     if (user == null && !isGuest) {
         LoginUi(groViewModel = groViewModel)
     } else {
         Scaffold(
             topBar = {
-                FirstAppTopHeader(
-                    currentScreen = currentScreen,
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = { searchQuery = it },
-                    onProfileClick = { navController.navigate(GroAppScreen.Profile.name) },
-                    onLogoutClick = { groViewModel.setLogoutClicked(true) },
-                    canNavigateBack = canNavigateBack,
-                    onNavigateUp = { navController.navigateUp() }
-                )
+                if (!showPaymentScreen) {
+                    FirstAppTopHeader(
+                        currentScreen = currentScreen,
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { searchQuery = it },
+                        onProfileClick = { navController.navigate(GroAppScreen.Profile.name) },
+                        onLogoutClick = { groViewModel.setLogoutClicked(true) },
+                        canNavigateBack = canNavigateBack,
+                        onNavigateUp = {
+                            if (navController.previousBackStackEntry != null) {
+                                navController.navigateUp()
+                            } else {
+                                navController.navigate(GroAppScreen.Start.name) {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                }
+                            }
+                        }
+                    )
+                }
             },
             bottomBar = {
-                FirstAppBar(
-                    navController = navController, 
-                    currentScreen = currentScreen, 
-                    cartItems = cartItems, 
-                    groViewModel = groViewModel
-                )
+                if (!showPaymentScreen) {
+                    FirstAppBar(
+                        navController = navController, 
+                        currentScreen = currentScreen, 
+                        cartItems = cartItems, 
+                        groViewModel = groViewModel
+                    )
+                }
             }
         ) { padding ->
-            Box(modifier = Modifier.padding(padding)) {
+            Box(modifier = Modifier.padding(padding).background(getSeasonalGradient())) {
+                // Seasonal overlay on top of the background but below/above content? We'll put it below NavHost so it acts as dynamic background, wait, no, the user wants colors ON screen.
+                // Or we put it above NavHost but with pointer intercept? Canvas doesn't intercept by default. Let's place it above NavHost!
                 NavHost(navController = navController, startDestination = GroAppScreen.Start.name) {
                     composable(route = GroAppScreen.Start.name) {
                         StartScreen(groViewModel = groViewModel, onCategoryClicked = { cat ->
@@ -158,6 +172,9 @@ fun FirstApp(
                         )
                     }
                 }
+
+                // Transparent Seasonal Overlay lightly overlaying all app screens
+                SeasonalAnimationOverlay(groViewModel = groViewModel, modifier = Modifier.fillMaxSize())
 
                 if (searchQuery.isNotEmpty()) {
                     Surface(

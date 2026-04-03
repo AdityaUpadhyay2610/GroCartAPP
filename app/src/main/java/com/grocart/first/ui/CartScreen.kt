@@ -28,6 +28,7 @@ import com.grocart.first.data.CartItemResponse
 import com.grocart.first.data.InternetItem
 import com.grocart.first.ui.theme.AestheticBackgroundStart
 import com.grocart.first.ui.theme.AestheticBackgroundEnd
+// Same package com.grocart.first.ui
 
 @Composable
 fun CartScreen(
@@ -37,7 +38,7 @@ fun CartScreen(
     val cartItems by groViewModel.cartItems.collectAsState()
     val showPaymentScreen by groViewModel.showPaymentScreen.collectAsState()
 
-    Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(AestheticBackgroundStart, AestheticBackgroundEnd)))) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
         if (cartItems.isNotEmpty()) {
 
             val totalPrice = cartItems.sumOf { (it.itemPrice * 75 / 100) * it.quantity }

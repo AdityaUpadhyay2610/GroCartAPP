@@ -49,7 +49,7 @@ fun MyOrdersScreen(groViewModel: GroViewModel) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(AestheticBackgroundStart, AestheticBackgroundEnd)))
+            .background(Color.Transparent)
     ) {
         if (orders.isNotEmpty()) {
             LazyColumn(

@@ -51,7 +51,7 @@ fun CategoryScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8F9FB))
+            .background(Color.Transparent)
     ) {
         // Header
         Box(

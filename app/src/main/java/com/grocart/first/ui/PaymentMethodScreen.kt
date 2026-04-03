@@ -100,10 +100,11 @@ fun PaymentMethodScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.White,
                     titleContentColor = DarkText
-                )
+                ),
+                windowInsets = WindowInsets(0.dp)
             )
         },
-        containerColor = GraySubtle
+        containerColor = Color.Transparent
     ) { padding ->
         Column(
             modifier = Modifier
