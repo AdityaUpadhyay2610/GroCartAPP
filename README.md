@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="screenshots/grocart_banner.png" alt="GroCart Banner" width="100%"/>
-</p>
 
 <h1 align="center">🛒 GroCart — Fresh Groceries in 10 Minutes</h1>
 
@@ -17,25 +14,6 @@
 </p>
 
 ---
-
-## 📸 App Screenshots
-
-<p align="center">
-  <img src="screenshots/home_screen.png" width="200" alt="Home Screen" />
-  &nbsp;&nbsp;
-  <img src="screenshots/home_screen_detail.png" width="200" alt="Home Screen Detail" />
-  &nbsp;&nbsp;
-  <img src="screenshots/categories_screen.png" width="200" alt="Categories Screen" />
-  &nbsp;&nbsp;
-  <img src="screenshots/profile_screen.png" width="200" alt="Profile Screen" />
-</p>
-
-<p align="center">
-  <i>Left to Right: Home Screen • Home with Recommendations • All Categories • Edit Profile</i>
-</p>
-
----
-
 ## ✨ Features
 
 ### 🔐 Authentication
