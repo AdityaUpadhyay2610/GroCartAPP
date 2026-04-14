@@ -307,7 +307,7 @@ The following files are **excluded from version control** to protect sensitive c
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/GroCart.git
+   git clone [https://github.com/YOUR_USERNAME/GroCart.git](https://github.com/AdityaUpadhyay2610/GroCartAPP.git)
    cd GroCart
    ```
 
