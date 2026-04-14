@@ -23,9 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
-import com.grocart.first.ui.theme.AestheticBackgroundStart
-import com.grocart.first.ui.theme.AestheticBackgroundEnd
 import com.grocart.first.ui.theme.ModernPrimary
 import com.grocart.first.ui.theme.ModernSecondary
 
@@ -36,17 +33,17 @@ fun ProfileScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val user by groViewModel.user.collectAsState()
     
     var nameState by remember(user) { mutableStateOf(user?.username ?: "") }
     var emailState by remember(user) { mutableStateOf(user?.email ?: "") }
-    var addressState by remember { mutableStateOf("Sector-4, GroCart City") }
+    val savedAddress by groViewModel.savedAddress.collectAsState()
+    var addressState by remember(savedAddress) { mutableStateOf(savedAddress) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(AestheticBackgroundStart, AestheticBackgroundEnd)))
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
     ) {
         // Aesthetic Gradient Header
@@ -104,7 +101,10 @@ fun ProfileScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
@@ -114,7 +114,7 @@ fun ProfileScreen(
                         text = "Personal Information",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E293B),
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 20.dp)
                     )
 
@@ -144,10 +144,17 @@ fun ProfileScreen(
 
                     Button(
                         onClick = {
-                            coroutineScope.launch {
-                                Toast.makeText(context, "Profile Updated Successfully!", Toast.LENGTH_SHORT).show()
-                                onNavigateBack()
-                            }
+                            groViewModel.updateProfile(
+                                newName = nameState,
+                                newAddress = addressState,
+                                onSuccess = {
+                                    Toast.makeText(context, "Profile saved!", Toast.LENGTH_SHORT).show()
+                                    onNavigateBack()
+                                },
+                                onError = { err ->
+                                    Toast.makeText(context, "Save failed: $err", Toast.LENGTH_LONG).show()
+                                }
+                            )
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -188,9 +195,12 @@ fun ProfileTextField(
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = ModernPrimary,
             focusedLabelColor = ModernPrimary,
-            unfocusedContainerColor = Color(0xFFF8FAFC),
-            focusedContainerColor = Color.White,
-            unfocusedBorderColor = Color(0xFFE2E8F0)
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline
         )
     )
 }

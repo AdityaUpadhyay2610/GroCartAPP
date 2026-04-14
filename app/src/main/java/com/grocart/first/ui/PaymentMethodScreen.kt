@@ -104,11 +104,24 @@ fun PaymentMethodScreen(
                 windowInsets = WindowInsets(0.dp)
             )
         },
-        containerColor = Color.Transparent
+        bottomBar = {
+            // ── Bottom Buy Button ── placed in bottomBar so content auto-insets correctly
+            BuyButton(
+                grandTotal = grandTotal,
+                selectedMethod = selectedMethod,
+                onClick = {
+                    if (selectedMethod != null) {
+                        showOrderPlaced = true
+                    }
+                }
+            )
+        },
+        containerColor = Color.White
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.White)
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -132,7 +145,7 @@ fun PaymentMethodScreen(
                 PaymentMethodCard(
                     method = method,
                     isSelected = selectedMethod == method,
-                    isEnabled = true, // All methods enabled as requested
+                    isEnabled = true,
                     groViewModel = groViewModel,
                     onClick = {
                         groViewModel.setPaymentMethod(method)
@@ -172,25 +185,7 @@ fun PaymentMethodScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(100.dp)) // Space for bottom button
-        }
-
-        // ── Bottom Buy Button ──
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            BuyButton(
-                grandTotal = grandTotal,
-                selectedMethod = selectedMethod,
-                onClick = {
-                    if (selectedMethod != null) {
-                        showOrderPlaced = true
-                    }
-                }
-            )
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

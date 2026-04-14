@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.grocart.first.R
 import com.grocart.first.data.InternetItem
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.grocart.first.ui.theme.AestheticBackgroundStart
 import com.grocart.first.ui.theme.AestheticBackgroundEnd
 
@@ -155,12 +156,18 @@ fun ItemCard(
 ) {
     val context = LocalContext.current
 
+    val isDark = isSystemInDarkTheme()
+    val cardBg = MaterialTheme.colorScheme.surface
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val addButtonBg = if (isDark) Color(0xFF3B1F6E) else Color(0xFFEDE9FE)
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant else Color(0xFFEEEEEE)
+
     Card(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
         modifier = Modifier.fillMaxWidth().padding(4.dp),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -196,12 +203,22 @@ fun ItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(text = "Rs. $itemPrice", fontSize = 10.sp, color = Color.Gray, textDecoration = TextDecoration.LineThrough)
-                    Text(text = "Rs. ${itemPrice * 75 / 100}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Text(
+                    text = "Rs. $itemPrice",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textDecoration = TextDecoration.LineThrough
+                )
+                Text(
+                    text = "Rs. ${itemPrice * 75 / 100}",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
+                )
                 }
                 Box(
                     modifier = Modifier
-                        .background(Color(0xFFEDE9FE), RoundedCornerShape(4.dp))
+                        .background(addButtonBg, RoundedCornerShape(4.dp))
                         .clickable {
                             val currentItem = InternetItem(
                                 id = itemId,
@@ -213,8 +230,6 @@ fun ItemCard(
                             )
                             groViewModel.triggerAddToCartAnimation(currentItem)
                             groViewModel.addToCart(currentItem)
-                            // The user's snippet had item.name and item, but the original code uses currentItem and itemName.
-                            // Keeping the original logic for Toast message to avoid breaking functionality.
                             Toast.makeText(context, "Added", Toast.LENGTH_SHORT).show()
                         }
                         .padding(horizontal = 16.dp, vertical = 6.dp)

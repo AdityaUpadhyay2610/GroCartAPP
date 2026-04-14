@@ -1,6 +1,5 @@
 package com.grocart.first.ui
 
-import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
@@ -13,6 +12,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import kotlinx.coroutines.isActive
 import java.util.Calendar
 import kotlin.random.Random
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 
 /** Defines the seasons mapping for dynamic themes and animations. */
 enum class Season {
@@ -56,26 +56,35 @@ private data class Particle(
 
 /**
  * An overlay that draws seasonal particles across the screen.
- * Should be placed above the main content (e.g. inside FirstApp scaffolding).
+ * Uses a plain ArrayList (not a Compose state list) to avoid triggering
+ * recompositions on every animation frame, which was causing scrolling jank.
+ * The Canvas reads a frame-tick counter to invalidate and redraw itself without
+ * rebuilding the composition tree.
  */
 @Composable
 fun SeasonalAnimationOverlay(groViewModel: GroViewModel, modifier: Modifier = Modifier) {
     val season = remember { getCurrentSeason() }
-    val particles = remember { mutableStateListOf<Particle>() }
-    
+
     val uiState by groViewModel.uiState.collectAsState()
     val categoryName = uiState.clickStatus
     val isFreezing = remember(season, categoryName) {
         season == Season.SUMMER && (categoryName.contains("Ice", ignoreCase = true) || categoryName.contains("Beverage", ignoreCase = true))
     }
-    
+
     val particleCount = if (isFreezing) 40 else when (season) {
-        Season.WINTER -> 30    // Moderate snowflakes
-        Season.SPRING -> 15    // Some petals
-        Season.MONSOON -> 40   // Heavy rain drops
-        Season.AUTUMN -> 15    // Some leaves
-        Season.SUMMER -> 20    // Dust/light particles
+        Season.WINTER -> 30
+        Season.SPRING -> 15
+        Season.MONSOON -> 40
+        Season.AUTUMN -> 15
+        Season.SUMMER -> 20
     }
+
+    // KEY CHANGE: Use a plain ArrayList, NOT mutableStateListOf.
+    // This prevents recomposition on every frame — only the Canvas invalidates.
+    val particles = remember(season, isFreezing) { ArrayList<Particle>(particleCount) }
+
+    // Frame ticker — only invalidates the Canvas, not the whole composition tree.
+    var frameTick by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(season, isFreezing) {
         particles.clear()
@@ -86,35 +95,43 @@ fun SeasonalAnimationOverlay(groViewModel: GroViewModel, modifier: Modifier = Mo
                     lastFrameTime = frameTime
                     return@withInfiniteAnimationFrameMillis
                 }
-                
-                val dt = (frameTime - lastFrameTime) / 1000f
+
+                val dt = (frameTime - lastFrameTime).coerceAtMost(50L) / 1000f
                 lastFrameTime = frameTime
 
-                // Update particle positions
                 for (i in particles.indices) {
                     val p = particles[i]
                     p.x += p.speedX * dt
                     p.y += p.speedY * dt
                     p.rotation += p.rotationSpeed * dt
 
-                    // Reset if out of logical bounds (Y > 3000f, or Y < -200f depending on season)
                     if (season == Season.SUMMER && !isFreezing) {
                         if (p.y < -100f) particles[i] = createParticle(season, initialY = 3000f, randomX = true, isFreezing = isFreezing)
                     } else {
                         if (p.y > 3000f) particles[i] = createParticle(season, initialY = -50f, randomX = true, isFreezing = isFreezing)
                     }
                 }
+
+                // Bump the tick — this only invalidates the Canvas composable, not the nav host or other screens.
+                frameTick = frameTime
             }
         }
     }
 
+    // Canvas is the only composable that redraws on frameTick changes.
+    // Since Canvas is a leaf node and the particle list is a plain list (not state),
+    // no parent composable is ever recomposed by this animation.
     Canvas(modifier = modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
 
-        // Initialize particles smoothly on first draw
+        // Eagerly read frameTick so Canvas re-draws each frame.
+        @Suppress("UNUSED_VARIABLE")
+        val tick = frameTick
+
+        // Initialize particles on first draw
         if (particles.isEmpty() && w > 0f) {
-            for (i in 0 until particleCount) {
+            repeat(particleCount) {
                 particles.add(createParticle(season, initialY = Random.nextFloat() * h, randomX = true, isFreezing = isFreezing))
             }
         }
@@ -147,12 +164,11 @@ fun SeasonalAnimationOverlay(groViewModel: GroViewModel, modifier: Modifier = Mo
         }
 
         particles.forEach { p ->
-            // Wrap X horizontally
             var cx = p.x
-            if (p.x == -1f) { cx = Random.nextFloat() * w; p.x = cx } // Setup flag handled
+            if (p.x == -1f) { cx = Random.nextFloat() * w; p.x = cx }
             else if (cx > w + 100f) p.x = -50f
             else if (cx < -100f) p.x = w + 50f
-            
+
             withTransform({
                 translate(left = p.x, top = p.y)
                 rotate(degrees = p.rotation)
@@ -169,7 +185,6 @@ fun SeasonalAnimationOverlay(groViewModel: GroViewModel, modifier: Modifier = Mo
                         )
                     }
                     Season.MONSOON -> {
-                        // Thin, vertical raindrops
                         drawRect(
                             color = p.color.copy(alpha = p.alpha),
                             topLeft = Offset(-p.size / 4, -p.size * 2),
@@ -194,20 +209,20 @@ fun SeasonalAnimationOverlay(groViewModel: GroViewModel, modifier: Modifier = Mo
 
 private fun createParticle(season: Season, initialY: Float, randomX: Boolean = false, isFreezing: Boolean = false): Particle {
     return when (season) {
-        Season.WINTER -> { // White snowflakes falling straight/slightly diagonal
+        Season.WINTER -> {
             Particle(
                 x = if (randomX) -1f else Random.nextFloat() * 1000f,
                 y = initialY,
                 size = 3f + Random.nextFloat() * 5f,
                 speedX = -20f + Random.nextFloat() * 40f,
-                speedY = 60f + Random.nextFloat() * 100f, // Moderate fall speed
+                speedY = 60f + Random.nextFloat() * 100f,
                 rotation = 0f,
                 rotationSpeed = 0f,
                 alpha = 0.4f + Random.nextFloat() * 0.4f,
                 color = Color.White
             )
         }
-        Season.SPRING -> { // Pink petals drifting
+        Season.SPRING -> {
             Particle(
                 x = if (randomX) -1f else Random.nextFloat() * 1000f,
                 y = initialY,
@@ -220,20 +235,20 @@ private fun createParticle(season: Season, initialY: Float, randomX: Boolean = f
                 color = if (Random.nextBoolean()) Color(0xFFF472B6) else Color(0xFFFBCFE8)
             )
         }
-        Season.MONSOON -> { // Raindrops falling very fast
+        Season.MONSOON -> {
             Particle(
                 x = if (randomX) -1f else Random.nextFloat() * 1000f,
                 y = initialY,
                 size = 3f + Random.nextFloat() * 3f,
-                speedX = -10f + Random.nextFloat() * 20f, // Slight wind
-                speedY = 300f + Random.nextFloat() * 200f, // Very fast fall
+                speedX = -10f + Random.nextFloat() * 20f,
+                speedY = 300f + Random.nextFloat() * 200f,
                 rotation = 0f,
                 rotationSpeed = 0f,
                 alpha = 0.3f + Random.nextFloat() * 0.4f,
                 color = Color(0xFF93C5FD)
             )
         }
-        Season.AUTUMN -> { // Orange/Brown leaves falling quickly
+        Season.AUTUMN -> {
             Particle(
                 x = if (randomX) -1f else Random.nextFloat() * 1000f,
                 y = initialY,
@@ -246,28 +261,26 @@ private fun createParticle(season: Season, initialY: Float, randomX: Boolean = f
                 color = if (Random.nextBoolean()) Color(0xFFF59E0B) else Color(0xFFB45309)
             )
         }
-        Season.SUMMER -> { 
+        Season.SUMMER -> {
             if (isFreezing) {
-                // Frost sparkles falling gently downwards
                 Particle(
                     x = if (randomX) -1f else Random.nextFloat() * 1000f,
-                    y = if (initialY < 0f) -50f else initialY, 
+                    y = if (initialY < 0f) -50f else initialY,
                     size = 2f + Random.nextFloat() * 3f,
                     speedX = -5f + Random.nextFloat() * 10f,
-                    speedY = 20f + Random.nextFloat() * 40f, // Fall down
+                    speedY = 20f + Random.nextFloat() * 40f,
                     rotation = 0f,
                     rotationSpeed = 0f,
                     alpha = 0.5f + Random.nextFloat() * 0.5f,
                     color = Color.White
                 )
             } else {
-                // Warm dust particles floating up
                 Particle(
                     x = if (randomX) -1f else Random.nextFloat() * 1000f,
-                    y = if (initialY < 0f) 2500f else initialY, // Spawn low so they float up
+                    y = if (initialY < 0f) 2500f else initialY,
                     size = 2f + Random.nextFloat() * 4f,
                     speedX = -15f + Random.nextFloat() * 30f,
-                    speedY = -15f - Random.nextFloat() * 30f, // Move UP
+                    speedY = -15f - Random.nextFloat() * 30f,
                     rotation = 0f,
                     rotationSpeed = 0f,
                     alpha = 0.2f + Random.nextFloat() * 0.3f,

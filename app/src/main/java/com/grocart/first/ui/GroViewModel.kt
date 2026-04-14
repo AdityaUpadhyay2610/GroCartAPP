@@ -89,9 +89,24 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
     private val _orders = MutableStateFlow<List<Order>>(emptyList())
     val orders: StateFlow<List<Order>> = _orders.asStateFlow()
 
+    // --- Profile state ---
+    private val _savedAddress = MutableStateFlow(sessionManager.getAddress())
+    val savedAddress: StateFlow<String> = _savedAddress.asStateFlow()
+
     // --- FirstApp (Navigation / Logout dialog) state ---
     private val _logoutClicked = MutableStateFlow(false)
     val logoutClicked: StateFlow<Boolean> = _logoutClicked.asStateFlow()
+
+    // --- Dark Theme state (set from Compose via isSystemInDarkTheme()) ---
+    private val _isDarkTheme = MutableStateFlow(false)
+    val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
+
+    /** Called from FirstApp to sync the device's dark-mode status into the ViewModel */
+    fun setDarkTheme(dark: Boolean) { _isDarkTheme.value = dark }
+
+    // --- Email Verification state ---
+    private val _isEmailVerified = MutableStateFlow(false)
+    val isEmailVerified: StateFlow<Boolean> = _isEmailVerified.asStateFlow()
 
     // --- Payment / Checkout state ---
     private val _selectedPaymentMethod = MutableStateFlow<PaymentMethod?>(null)
@@ -144,6 +159,7 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
         if (currentUser != null) {
             _user.value = UserResponse(id = currentUser.uid, username = currentUser.displayName ?: "User", email = currentUser.email ?: "")
             _isGuestSession.value = false
+            _isEmailVerified.value = currentUser.isEmailVerified
         }
     }
 
@@ -176,6 +192,10 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
                 if (user != null) {
                     Log.d("LOGIN", "Login successful! UID: ${user.uid}")
                     _user.value = UserResponse(id = user.uid, username = user.displayName ?: "User", email = user.email ?: "")
+                    _isEmailVerified.value = user.isEmailVerified
+                    if (!user.isEmailVerified) {
+                        Log.w("LOGIN", "User email not verified yet.")
+                    }
                     loadUserCart()
                     loadOrders()
                     getFirstItem()
@@ -204,6 +224,16 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
 
                 user?.updateProfile(profileUpdates)?.addOnCompleteListener {
                     _user.value = UserResponse(id = user.uid, username = u, email = e)
+                    _isEmailVerified.value = false // New account is always unverified
+                    // Send verification email automatically
+                    user.sendEmailVerification().addOnCompleteListener { verifyTask ->
+                        if (verifyTask.isSuccessful) {
+                            Log.d("REGISTER", "Verification email sent to $e")
+                            _authError.value = "Verification email sent to $e — please check your inbox!"
+                        } else {
+                            Log.w("REGISTER", "Failed to send verification email: ${verifyTask.exception?.message}")
+                        }
+                    }
                     loadUserCart()
                     getFirstItem()
                     _loading.value = false
@@ -213,6 +243,33 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
                 Log.e("REGISTER", "Registration failed: $errorMsg")
                 _authError.value = errorMsg
                 _loading.value = false
+            }
+        }
+    }
+
+    /** Re-checks Firebase to see if user has clicked the verification link */
+    fun refreshEmailVerification() {
+        viewModelScope.launch {
+            try {
+                auth.currentUser?.reload()?.await()
+                _isEmailVerified.value = auth.currentUser?.isEmailVerified ?: false
+                Log.d("EMAIL_VERIFY", "Verification status refreshed: ${_isEmailVerified.value}")
+            } catch (e: Exception) {
+                Log.e("EMAIL_VERIFY", "Failed to refresh verification: ${e.message}")
+            }
+        }
+    }
+
+    /** Resends the Firebase email verification link */
+    fun resendVerificationEmail() {
+        val user = auth.currentUser ?: return
+        user.sendEmailVerification().addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                Log.d("EMAIL_VERIFY", "Verification email resent.")
+                _authError.value = "Verification email resent — check your inbox!"
+            } else {
+                Log.e("EMAIL_VERIFY", "Resend failed: ${task.exception?.message}")
+                _authError.value = task.exception?.message ?: "Failed to resend email"
             }
         }
     }
@@ -390,15 +447,10 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
     /** Updates the countdown timer shown during payment */
     fun setPaymentCountdown(v: Int) { _paymentCountdown.value = v }
 
-    /** Completes payment locally — clears cart and adds order to local list */
+    /** Completes payment locally — closes overlay. Cart clearing moved to placeOrder. */
     fun completePayment() {
-        val currentItems = _cartItems.value.toList()
-        if (currentItems.isNotEmpty()) {
-            val order = Order(items = currentItems, timestamp = System.currentTimeMillis())
-            _orders.update { it + order }
-            Log.d("GROCART", "Order added to local list. Total orders: ${_orders.value.size}")
-        }
-        _cartItems.value = emptyList()
+        // We no longer clear _cartItems here, as placeOrder needs to read them.
+        // It will be cleared in placeOrder() after successful Firebase sync.
         _showPaymentScreen.value = false
     }
 
@@ -406,7 +458,10 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
     fun placeOrder(total: Int) {
         val userId = _user.value?.id ?: return
         val itemsToOrder = _cartItems.value.toList()
-        if (itemsToOrder.isEmpty()) return
+        if (itemsToOrder.isEmpty()) {
+            Log.w("GROCART", "placeOrder called but cart is empty!")
+            return
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -414,12 +469,17 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
                 val order = Order(items = itemsToOrder, timestamp = System.currentTimeMillis())
                 val response = FirstApi.retrofitService.placeOrder(userId, order, token)
                 if (response.isSuccessful) {
+                    // Clear cart remotely on Firebase
                     FirstApi.retrofitService.clearUserCart(userId, token)
                     withContext(Dispatchers.Main) {
                         Log.d("GROCART", "Firebase: Order placed and cart cleared!")
+                        // Clear cart locally ONLY after successful remote clearing
                         _cartItems.value = emptyList()
                     }
+                    // Refresh orders list to include the new one
                     loadOrders()
+                } else {
+                    Log.e("GROCART", "Order placement Failed: ${response.code()}")
                 }
             } catch (e: Exception) {
                 Log.e("GROCART", "Order placement Failed: ${e.message}")
@@ -479,10 +539,40 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
         _isGuestSession.value = false
         _logoutClicked.value = false
         _orders.value = emptyList()
+        _isEmailVerified.value = false
     }
 
     /** Alias for logout — used in FirstApp.kt logout dialog */
     fun clearData() { logout() }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  PROFILE SCREEN (ProfileScreen.kt)
+    //  Methods: updateProfile()
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /** Updates the user's display name on Firebase and saves address locally */
+    fun updateProfile(newName: String, newAddress: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val firebaseUser = auth.currentUser ?: run { onError("Not logged in"); return }
+        val profileUpdates = UserProfileChangeRequest.Builder()
+            .setDisplayName(newName.trim())
+            .build()
+        _loading.value = true
+        firebaseUser.updateProfile(profileUpdates).addOnCompleteListener { task ->
+            _loading.value = false
+            if (task.isSuccessful) {
+                // Update in-memory user state so the header refreshes immediately
+                _user.value = _user.value?.copy(username = newName.trim())
+                // Persist address locally
+                sessionManager.saveAddress(newAddress)
+                _savedAddress.value = newAddress
+                // Update session cache
+                sessionManager.saveUserSession(firebaseUser.uid, newName.trim())
+                onSuccess()
+            } else {
+                onError(task.exception?.message ?: "Failed to update profile")
+            }
+        }
+    }
 
     // ════════════════════════════════════════════════════════════════════════════
     //  PAYMENT HELPERS

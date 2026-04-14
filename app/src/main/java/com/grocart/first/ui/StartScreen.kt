@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.*
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -35,10 +37,7 @@ import com.grocart.first.R
 import com.grocart.first.data.DataSource
 import com.grocart.first.data.InternetItem
 import coil.compose.AsyncImage
-import com.grocart.first.ui.theme.AestheticBackgroundStart
-import com.grocart.first.ui.theme.AestheticBackgroundEnd
-// Import seasonal logic if needed, but it's in the same package (com.grocart.first.ui)
-import androidx.compose.ui.graphics.Brush
+
 
 @Composable
 fun StartScreen(
@@ -88,7 +87,7 @@ fun StartScreen(
                     text = "Shop By Category",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 20.sp,
-                    color = Color(0xFF1E293B),
+                    color = Color.Black,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
@@ -185,7 +184,7 @@ fun RecommendedSection(
             text = "Recommended for you",
             fontWeight = FontWeight.ExtraBold,
             fontSize = 20.sp,
-            color = Color(0xFF1E293B),
+            color = Color.Black,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
         )
         LazyRow(
@@ -210,12 +209,19 @@ fun SmallItemCard(
     groViewModel: GroViewModel,
     context: Context
 ) {
+    val isDark = isSystemInDarkTheme()
+    val cardBg = MaterialTheme.colorScheme.surface
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val addBg = if (isDark) Color(0xFF3B1F6E) else Color(0xFFF5F3FF)
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant
+                      else Color(0xFFF1F5F9)
+
     Card(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
         modifier = Modifier.width(140.dp),
         shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -234,12 +240,13 @@ fun SmallItemCard(
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 textAlign = TextAlign.Start,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                color = textPrimary
             )
             Text(
                 text = item.itemQuantity,
                 fontSize = 11.sp,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -253,7 +260,7 @@ fun SmallItemCard(
                     text = "₹${item.itemPrice * 75 / 100}",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF1E293B)
+                    color = textPrimary
                 )
                 Surface(
                     modifier = Modifier
@@ -262,7 +269,7 @@ fun SmallItemCard(
                             groViewModel.addToCart(item)
                             Toast.makeText(context, "Added", Toast.LENGTH_SHORT).show()
                         },
-                    color = Color(0xFFF5F3FF),
+                    color = addBg,
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
@@ -288,6 +295,7 @@ fun CategoryCardSleek(
     backgroundColor: Color = Color(0xFFE8EAF6)
 ) {
     val categoryName = stringResource(id = stringResourceId)
+    val textColor = MaterialTheme.colorScheme.onBackground
 
     Column(
         modifier = Modifier
@@ -318,7 +326,7 @@ fun CategoryCardSleek(
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            color = Color(0xFF334155)
+            color = Color.Black
         )
     }
 }

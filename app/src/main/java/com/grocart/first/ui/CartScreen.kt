@@ -26,9 +26,6 @@ import coil.compose.AsyncImage
 import com.grocart.first.R
 import com.grocart.first.data.CartItemResponse
 import com.grocart.first.data.InternetItem
-import com.grocart.first.ui.theme.AestheticBackgroundStart
-import com.grocart.first.ui.theme.AestheticBackgroundEnd
-// Same package com.grocart.first.ui
 
 @Composable
 fun CartScreen(
@@ -85,12 +82,15 @@ fun CartScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 80.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Bill Details", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                            Text("Bill Details", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(modifier = Modifier.height(12.dp))
                             
                             cartItems.forEach { cartItem ->
@@ -99,13 +99,13 @@ fun CartScreen(
                                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                                     val leftText = "${cartItem.quantity}x ${cartItem.itemName}"
                                     val displayName = if (leftText.length > 25) leftText.take(22) + "..." else leftText
-                                    Text(text = displayName, fontSize = 14.sp, color = Color.DarkGray)
-                                    Text(text = "Rs. $lineTotal", fontSize = 14.sp, color = Color.Black, fontWeight = FontWeight.Medium)
+                                    Text(text = displayName, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(text = "Rs. $lineTotal", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                                 }
                             }
                             
                             Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
                             Spacer(modifier = Modifier.height(8.dp))
                             
                             BillRow("Item Total", totalPrice, FontWeight.Normal)
@@ -113,7 +113,7 @@ fun CartScreen(
                             BillRow("Delivery Fee", deliveryFee, FontWeight.Normal)
                             
                             Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
                             Spacer(modifier = Modifier.height(8.dp))
                             
                             BillRow("To Pay", grandTotal, FontWeight.ExtraBold)
@@ -127,7 +127,7 @@ fun CartScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .background(Color.White)
+                    .background(MaterialTheme.colorScheme.surface)
                     .padding(16.dp)
             ) {
                 Button(
@@ -155,6 +155,7 @@ fun CartScreen(
                 deliveryFee = paymentDeliveryFee,
                 groViewModel = groViewModel,
                 onPaymentConfirmed = { _, finalTotal, _ ->
+                    // Order logic: completePayment doesn't clear cart anymore, placeOrder does it after Firebase sync
                     groViewModel.completePayment()
                     groViewModel.placeOrder(finalTotal)
                     onHomeButtonClicked()
@@ -206,9 +207,12 @@ fun CartCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -221,11 +225,11 @@ fun CartCard(
                 modifier = Modifier
                     .size(70.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFF5F5F5))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             )
             Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(text = item.itemName, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = Color.Black)
-                Text(text = "Rs. ${item.itemPrice * 75 / 100}", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+                Text(text = item.itemName, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = "Rs. ${item.itemPrice * 75 / 100}", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 QuantitySelector(quantity = quantity, onAddItem = onAddItem, onRemoveItem = onRemoveItem)
@@ -233,7 +237,7 @@ fun CartCard(
                     text = "Rs. $lineItemTotalPrice",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -259,7 +263,7 @@ fun QuantitySelector(
         ) {
             Icon(Icons.Default.Remove, contentDescription = "Remove", tint = MaterialTheme.colorScheme.primary)
         }
-        Text(text = "$quantity", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp), textAlign = TextAlign.Center)
+        Text(text = "$quantity", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
         IconButton(
             onClick = onAddItem,
             modifier = Modifier.size(32.dp)
@@ -273,7 +277,7 @@ fun QuantitySelector(
 @Composable
 fun BillRow(itemName: String, itemPrice: Int, fontWeight: FontWeight) {
     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(text = itemName, fontWeight = fontWeight, color = Color.DarkGray, fontSize = 14.sp)
-        Text(text = "Rs. $itemPrice", fontWeight = fontWeight, color = Color.Black, fontSize = 14.sp)
+        Text(text = itemName, fontWeight = fontWeight, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+        Text(text = "Rs. $itemPrice", fontWeight = fontWeight, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
     }
 }

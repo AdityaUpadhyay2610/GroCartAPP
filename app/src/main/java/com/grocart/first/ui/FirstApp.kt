@@ -1,22 +1,31 @@
 package com.grocart.first.ui
 
+import android.annotation.SuppressLint
 import android.util.Log
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Address
 import android.location.Geocoder
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
+import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
+import kotlin.coroutines.resume
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,6 +57,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 
 import androidx.compose.ui.graphics.graphicsLayer
@@ -94,6 +104,10 @@ fun FirstApp(
         backStackEntry?.destination?.route ?: GroAppScreen.Start.name
     )
 
+    // Sync dark mode status into the ViewModel so all screens can observe it
+    val isDark = isSystemInDarkTheme()
+    LaunchedEffect(isDark) { groViewModel.setDarkTheme(isDark) }
+
     // Properly observe navigation state instead of using a global variable
     val canNavigateBack = currentScreen != GroAppScreen.Start
 
@@ -103,6 +117,7 @@ fun FirstApp(
         LoginUi(groViewModel = groViewModel)
     } else {
         Scaffold(
+            containerColor = Color.Transparent,
             topBar = {
                 if (!showPaymentScreen) {
                     FirstAppTopHeader(
@@ -301,8 +316,14 @@ fun FirstAppBar(
         modifier = Modifier
             .fillMaxWidth()
             .height(80.dp)
-            .background(Color.Transparent) 
+            .background(Color.Transparent)
     ) {
+        val density = LocalDensity.current
+        val cutRadiusPx = with(density) { 32.dp.toPx() }
+        val cornerRadiusPx = with(density) { 20.dp.toPx() }
+        val fabOffsetYPx = with(density) { 12.dp.toPx() }.toInt()
+        val fabHalfWidthPx = with(density) { 28.dp.toPx() }.toInt()
+
         val widthPx = this.constraints.maxWidth.toFloat()
         val itemWidth = widthPx / tabs.size
         
@@ -317,13 +338,10 @@ fun FirstAppBar(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(65.dp)
-                .graphicsLayer {
-                    shape = CurvedBottomBarShape(cutPosition, 32.dp.toPx(), 20.dp.toPx())
-                    clip = true
-                },
-            color = Color.White,
-            shadowElevation = 12.dp
+                .height(65.dp),
+            shape = CurvedBottomBarShape(cutPosition, cutRadiusPx, cornerRadiusPx),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 8.dp
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -351,7 +369,7 @@ fun FirstAppBar(
                             Icon(
                                 imageVector = icon,
                                 contentDescription = screen.title,
-                                tint = if (isSelected) Color.Transparent else Color.Gray,
+                                tint = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(26.dp)
                             )
                             if (screen == GroAppScreen.Cart && cartItems.isNotEmpty()) {
@@ -371,7 +389,7 @@ fun FirstAppBar(
         // Floating Action Button for selected item
         Box(
             modifier = Modifier
-                .offset { IntOffset(cutPosition.toInt() - 28.dp.toPx().toInt(), (-12).dp.toPx().toInt()) }
+                .offset { IntOffset(cutPosition.toInt() - fabHalfWidthPx, -fabOffsetYPx) }
                 .size(56.dp)
                 .clip(CircleShape)
                 .background(Color(0xFF7C3AED))
@@ -421,17 +439,21 @@ fun FirstAppTopHeader(
 ) {
     val context = LocalContext.current
     var locationText by remember { mutableStateOf("Fetching location...") }
-    
-    val locationPermissionGranted by remember { 
-        derivedStateOf {
+
+    // Reactive: updated explicitly after the permission dialog returns
+    var locationPermissionGranted by remember {
+        mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        }
+        )
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { _: Map<String, Boolean> -> /* LaunchedEffect handles the update through derivedStateOf */ }
+    ) { permissions ->
+        // Re-check after result so LaunchedEffect re-triggers
+        locationPermissionGranted = permissions.values.any { it }
+    }
 
     LaunchedEffect(locationPermissionGranted) {
         if (!locationPermissionGranted) {
@@ -440,52 +462,32 @@ fun FirstAppTopHeader(
             )
             locationText = "Location Required"
         } else {
+            locationText = "Fetching location..."
             withContext(Dispatchers.IO) {
                 try {
-                    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-                    val providers = locationManager.getProviders(true)
-                    var bestLocation: Location? = null
-                    
-                    for (provider in providers) {
-                        try {
-                            val l = locationManager.getLastKnownLocation(provider) ?: continue
-                            if (bestLocation == null || l.accuracy < bestLocation.accuracy) {
-                                bestLocation = l
-                            }
-                        } catch (e: SecurityException) {
-                            Log.w("LOCATION", "Permission error for provider $provider: ${e.message}")
-                            continue 
-                        }
-                    }
-                    
-                    if (bestLocation != null) {
-                        try {
-                            val geocoder = Geocoder(context, Locale.getDefault())
-                            val addresses = geocoder.getFromLocation(bestLocation.latitude, bestLocation.longitude, 1)
-                            withContext(Dispatchers.Main) {
-                                if (!addresses.isNullOrEmpty()) {
-                                    val address = addresses[0]
-                                    locationText = "${address.subLocality ?: address.locality ?: "Unknown"}, ${address.adminArea ?: ""}"
-                                } else {
-                                    locationText = "Location not found"
-                                }
-                            }
-                        } catch (e: Exception) {
-                            withContext(Dispatchers.Main) { locationText = "Location unavailable" }
-                        }
+                    val location = getBestLocation(context)
+                    if (location != null) {
+                        val addressText = reverseGeocode(context, location.latitude, location.longitude)
+                        withContext(Dispatchers.Main) { locationText = addressText }
                     } else {
                         withContext(Dispatchers.Main) { locationText = "Please enable GPS" }
                     }
                 } catch (e: Exception) {
-                    withContext(Dispatchers.Main) { locationText = "Error getting location" }
+                    Log.e("LOCATION", "Error: ${e.message}", e)
+                    withContext(Dispatchers.Main) { locationText = "Location unavailable" }
                 }
             }
         }
     }
 
     var menuExpanded by remember { mutableStateOf(false) }
+    val isDark = isSystemInDarkTheme()
+    val surfaceBg = MaterialTheme.colorScheme.surface
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val searchBarBg = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFF5F5F5)
+    val hintColor = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.Gray
 
-    Surface(color = Color.White, shadowElevation = 0.dp) {
+    Surface(color = surfaceBg, shadowElevation = 0.dp) {
         Column(modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
@@ -514,11 +516,12 @@ fun FirstAppTopHeader(
                         Text(
                             text = if (currentScreen == GroAppScreen.Start) "Grocery in 10 minutes" else currentScreen.title,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            fontSize = 18.sp,
+                            color = onSurface
                         )
-                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.Black)
+                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null, tint = onSurface)
                     }
-                    Text(text = "Home - $locationText", fontSize = 12.sp, color = Color.Gray, maxLines = 1)
+                    Text(text = "Home - $locationText", fontSize = 12.sp, color = hintColor, maxLines = 1)
                 }
                 Box {
                     IconButton(onClick = { menuExpanded = true }) {
@@ -532,7 +535,7 @@ fun FirstAppTopHeader(
                     DropdownMenu(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false },
-                        containerColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.surface
                     ) {
                         DropdownMenuItem(
                             text = { Text("Edit Profile", fontWeight = FontWeight.Medium) },
@@ -556,35 +559,138 @@ fun FirstAppTopHeader(
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                    colors = CardDefaults.cardColors(containerColor = searchBarBg),
                     modifier = Modifier.fillMaxWidth().height(50.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = Color.Gray)
+                        Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = hintColor)
                         Spacer(modifier = Modifier.width(8.dp))
                         BasicTextField(
                             value = searchQuery,
                             onValueChange = onSearchQueryChange,
                             singleLine = true,
                             modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(fontSize = 16.sp, color = Color.Black),
+                            textStyle = TextStyle(fontSize = 16.sp, color = onSurface),
                             decorationBox = { innerTextField ->
                                 if (searchQuery.isEmpty()) {
-                                    Text("Search \"milk\", \"bread\"...", color = Color.Gray, fontSize = 16.sp)
+                                    Text("Search \"milk\", \"bread\"...", color = hintColor, fontSize = 16.sp)
                                 }
                                 innerTextField()
                             }
                         )
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { onSearchQueryChange("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color.Gray)
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = hintColor)
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Location helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the best available [Location].
+ * 1. Tries cached last-known fixes from all enabled providers.
+ * 2. If nothing is cached, requests a single fresh update (max 10 s wait).
+ */
+@SuppressLint("MissingPermission")
+suspend fun getBestLocation(context: Context): Location? {
+    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    val providers = locationManager.getProviders(true)
+
+    // 1. Try cached fixes first
+    var best: Location? = null
+    for (provider in providers) {
+        try {
+            val loc = locationManager.getLastKnownLocation(provider) ?: continue
+            if (best == null || loc.accuracy < best.accuracy) best = loc
+        } catch (e: SecurityException) {
+            Log.w("LOCATION", "Cached fix denied for $provider: ${e.message}")
+        }
+    }
+    if (best != null) return best
+
+    // 2. No cached fix — request a live single update (coroutine-suspended)
+    val preferredProvider = when {
+        locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+        locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+        else -> return null
+    }
+
+    return withTimeoutOrNull(10_000L) {
+        suspendCancellableCoroutine { cont ->
+            val listener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    locationManager.removeUpdates(this)
+                    if (cont.isActive) cont.resume(location)
+                }
+                // Required on API < 29
+                @Deprecated("Deprecated in Java")
+                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                override fun onProviderEnabled(provider: String) {}
+                override fun onProviderDisabled(provider: String) {
+                    if (cont.isActive) cont.resume(null)
+                }
+            }
+            try {
+                locationManager.requestSingleUpdate(preferredProvider, listener, null)
+                cont.invokeOnCancellation { locationManager.removeUpdates(listener) }
+            } catch (e: SecurityException) {
+                Log.e("LOCATION", "Permission error requesting update: ${e.message}")
+                cont.resume(null)
+            }
+        }
+    }
+}
+
+/**
+ * Converts [lat]/[lng] to a human-readable locality string.
+ * Uses the new callback-based [Geocoder.getFromLocation] on API 33+ and
+ * falls back to the (deprecated) synchronous version on older devices.
+ */
+suspend fun reverseGeocode(context: Context, lat: Double, lng: Double): String {
+    val geocoder = Geocoder(context, Locale.getDefault())
+
+    fun formatAddress(addresses: List<Address>?): String {
+        if (addresses.isNullOrEmpty()) return "Location not found"
+        val addr = addresses[0]
+        val locality = addr.subLocality ?: addr.locality ?: addr.adminArea ?: "Unknown"
+        val state = addr.adminArea ?: ""
+        return if (state.isNotBlank()) "$locality, $state" else locality
+    }
+
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        // API 33+ — callback-based, non-blocking
+        suspendCancellableCoroutine { cont ->
+            geocoder.getFromLocation(lat, lng, 1, object : Geocoder.GeocodeListener {
+                override fun onGeocode(addresses: MutableList<Address>) {
+                    if (cont.isActive) cont.resume(formatAddress(addresses))
+                }
+                override fun onError(errorMessage: String?) {
+                    Log.e("GEOCODE", "GeocodeListener error: $errorMessage")
+                    if (cont.isActive) cont.resume("Location unavailable")
+                }
+            })
+        }
+    } else {
+        // API < 33 — run the blocking call off the main thread
+        withContext(Dispatchers.IO) {
+            try {
+                @Suppress("DEPRECATION")
+                val addresses = geocoder.getFromLocation(lat, lng, 1)
+                formatAddress(addresses)
+            } catch (e: Exception) {
+                Log.e("GEOCODE", "Legacy geocode error: ${e.message}")
+                "Location unavailable"
             }
         }
     }

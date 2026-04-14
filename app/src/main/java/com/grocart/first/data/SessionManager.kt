@@ -35,6 +35,18 @@ class SessionManager(context: Context) {
 
 
     /**
+     * Saves the user's delivery address.
+     */
+    fun saveAddress(address: String) {
+        prefs.edit { putString("USER_ADDRESS", address) }
+    }
+
+    /**
+     * Gets the saved delivery address.
+     */
+    fun getAddress(): String = prefs.getString("USER_ADDRESS", "Sector-4, GroCart City") ?: "Sector-4, GroCart City"
+
+    /**
      * Clears all session data, effectively logging out the user.
      */
     fun logout() {
