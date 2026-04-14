@@ -455,7 +455,7 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
     }
 
     /** Places order on Firebase — clears remote cart and reloads orders */
-    fun placeOrder(total: Int) {
+    fun placeOrder(total: Int, couponDiscount: Int = 0) {
         val userId = _user.value?.id ?: return
         val itemsToOrder = _cartItems.value.toList()
         if (itemsToOrder.isEmpty()) {
@@ -466,7 +466,12 @@ class GroViewModel(private val sessionManager: SessionManager) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val token = getIdToken()
-                val order = Order(items = itemsToOrder, timestamp = System.currentTimeMillis())
+                val order = Order(
+                    items = itemsToOrder,
+                    timestamp = System.currentTimeMillis(),
+                    totalPaid = total,
+                    couponDiscount = couponDiscount
+                )
                 val response = FirstApi.retrofitService.placeOrder(userId, order, token)
                 if (response.isSuccessful) {
                     // Clear cart remotely on Firebase

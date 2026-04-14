@@ -127,13 +127,21 @@ object PdfGenerator {
             currentY += 25f
 
             // --- Items ---
-            val itemsWithQuantity = order.items
-                .groupBy { it.itemName }
-                .map { (_, items) -> Pair(items.first(), items.size) }
-
+            // CartItemResponse already carries the correct quantity — no need to group
             var subtotal = 0
 
-            for ((item, quantity) in itemsWithQuantity) {
+            // Gray sub-line paint for unit price
+            val unitPricePaint = Paint().apply {
+                color = Color.GRAY
+                textSize = 12f
+                typeface = Typeface.MONOSPACE
+                textAlign = Paint.Align.LEFT
+            }
+
+            for (item in order.items) {
+                val quantity = item.quantity
+                val discountedPrice = item.itemPrice * 75 / 100
+
                 // Item Name (Trimmed if too long)
                 val maxNameLength = 20
                 var dispName = item.itemName
@@ -141,48 +149,78 @@ object PdfGenerator {
                     dispName = dispName.substring(0, maxNameLength - 3) + "..."
                 }
 
-                // Format: " 1x  Tomato"
+                // Line 1: "2x  Item Name"   →   "Rs. lineTotal"
                 val qtyStr = quantity.toString().padStart(2, ' ') + "x"
                 canvas.drawText("$qtyStr  $dispName", margin, currentY, textPaint)
 
-                // Cost for this line
-                val lineTotal = item.itemPrice * quantity
+                val lineTotal = discountedPrice * quantity
                 subtotal += lineTotal
-                canvas.drawText(lineTotal.toString(), rightMarginX, currentY, rightAlignPaint)
+                canvas.drawText("Rs. $lineTotal", rightMarginX, currentY, rightAlignPaint)
 
-                currentY += 25f
+                // Line 2: "    @ Rs. X each" (indented, gray, smaller)
+                currentY += 18f
+                canvas.drawText("     @ Rs. $discountedPrice each", margin, currentY, unitPricePaint)
+
+                currentY += 20f
             }
 
             currentY += 10f
             canvas.drawLine(margin, currentY, rightMarginX, currentY, dividerPaint)
             currentY += 25f
 
-            // --- Totals ---
-            // Note: MyOrdersScreen calculate actual total (with tax/delivery) just locally in ui, 
-            // but for Invoice let's estimate or just show the items sum if we don't have the exact total saved.
-            // Since delivery and handling are standard in your UI:
+            // --- Totals: use persisted order values for exact accuracy ---
             val handlingCharge = (subtotal * 0.01).toInt()
             val deliveryFee = 30
-            val grandTotal = subtotal + handlingCharge + deliveryFee
+            val couponDiscount = order.couponDiscount
+            // Use stored totalPaid if available; fall back for older orders
+            val grandTotal = if (order.totalPaid > 0) order.totalPaid
+                             else subtotal + handlingCharge + deliveryFee - couponDiscount
 
-            canvas.drawText("Subtotal:", rightMarginX - 80f, currentY, textPaint)
-            canvas.drawText(subtotal.toString(), rightMarginX, currentY, rightAlignPaint)
-            currentY += 25f
+            canvas.drawText("Subtotal:", margin, currentY, textPaint)
+            canvas.drawText("Rs. $subtotal", rightMarginX, currentY, rightAlignPaint)
+            currentY += 22f
 
-            canvas.drawText("Handling:", rightMarginX - 80f, currentY, textPaint)
-            canvas.drawText(handlingCharge.toString(), rightMarginX, currentY, rightAlignPaint)
-            currentY += 25f
+            canvas.drawText("Handling (1%):", margin, currentY, textPaint)
+            canvas.drawText("Rs. $handlingCharge", rightMarginX, currentY, rightAlignPaint)
+            currentY += 22f
 
-            canvas.drawText("Delivery:", rightMarginX - 80f, currentY, textPaint)
-            canvas.drawText(deliveryFee.toString(), rightMarginX, currentY, rightAlignPaint)
-            currentY += 25f
+            canvas.drawText("Delivery Fee:", margin, currentY, textPaint)
+            canvas.drawText("Rs. $deliveryFee", rightMarginX, currentY, rightAlignPaint)
+            currentY += 22f
+
+            // Show coupon savings only if a coupon was applied
+            if (couponDiscount > 0) {
+                val savingsPaint = Paint().apply {
+                    color = Color.parseColor("#16A34A")
+                    textSize = 14f
+                    typeface = Typeface.MONOSPACE
+                    textAlign = Paint.Align.LEFT
+                }
+                val savingsRightPaint = Paint().apply {
+                    color = Color.parseColor("#16A34A")
+                    textSize = 14f
+                    typeface = Typeface.MONOSPACE
+                    textAlign = Paint.Align.RIGHT
+                }
+                canvas.drawText("Coupon Savings:", margin, currentY, savingsPaint)
+                canvas.drawText("- Rs. $couponDiscount", rightMarginX, currentY, savingsRightPaint)
+                currentY += 22f
+            }
 
             canvas.drawLine(margin, currentY, rightMarginX, currentY, dividerPaint)
-            currentY += 25f
+            currentY += 10f
 
-            canvas.drawText("TOTAL AMOUNT PAID:", margin, currentY, boldTextPaint)
+            // Highlight total row with a light background
+            val totalRowPaint = Paint().apply {
+                color = Color.parseColor("#F0FDF4")
+                style = Paint.Style.FILL
+            }
+            canvas.drawRect(margin, currentY - 4f, rightMarginX, currentY + 24f, totalRowPaint)
+            currentY += 20f
+
+            canvas.drawText("TOTAL PAID:", margin, currentY, boldTextPaint)
             canvas.drawText("Rs. $grandTotal", rightMarginX, currentY, Paint().apply {
-                color = Color.BLACK
+                color = Color.parseColor("#16A34A")
                 textSize = 16f
                 typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
                 textAlign = Paint.Align.RIGHT

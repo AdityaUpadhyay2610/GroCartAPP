@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.grocart.first.R
-import com.grocart.first.data.InternetItem
+import com.grocart.first.data.CartItemResponse
 import com.grocart.first.data.Order
 import com.grocart.first.ui.theme.ModernPrimary
 import com.grocart.first.utils.PdfGenerator
@@ -195,13 +195,15 @@ fun MyOrdersScreen(groViewModel: GroViewModel) {
 
 @Composable
 fun OrderCard(order: Order) {
-    val itemsWithQuantity = order.items
-        .groupBy { it.itemName }
-        .map { (_, items) ->
-            com.grocart.first.data.InternetItemWithQuantity(items.first().toInternetItem(), items.size)
-        }
+    val itemsWithQuantity = order.items  // CartItemResponse already has .quantity
 
-    val orderTotal = order.items.sumOf { it.itemPrice }
+    // Use the persisted totalPaid if available; fall back to calculation for old orders
+    val subtotal = order.items.sumOf { (it.itemPrice * 75 / 100) * it.quantity }
+    val handlingCharge = (subtotal * 0.01).toInt()
+    val deliveryFee = 30
+    val couponDiscount = order.couponDiscount
+    val displayTotal = if (order.totalPaid > 0) order.totalPaid
+                       else subtotal + handlingCharge + deliveryFee - couponDiscount
 
     val context = LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -240,7 +242,7 @@ fun OrderCard(order: Order) {
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "₹$orderTotal",
+                        text = "₹$displayTotal",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color(0xFF16A34A),
@@ -251,14 +253,56 @@ fun OrderCard(order: Order) {
             
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
-            itemsWithQuantity.forEach { itemWithQuantity ->
+            itemsWithQuantity.forEach { cartItem ->
                 OrderItemRow(
-                    item = itemWithQuantity.internetItem,
-                    quantity = itemWithQuantity.quantity
+                    item = cartItem,
+                    quantity = cartItem.quantity
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Bill breakdown
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Item Subtotal", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("₹$subtotal", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Handling (1%)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("₹$handlingCharge", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Delivery Fee", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("₹$deliveryFee", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+            }
+            if (couponDiscount > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Coupon Discount", fontSize = 13.sp, color = Color(0xFF16A34A))
+                    Text("- ₹$couponDiscount", fontSize = 13.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Total Paid", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text("₹$displayTotal", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF16A34A))
+            }
 
             OutlinedButton(
                 onClick = {
@@ -285,7 +329,9 @@ fun OrderCard(order: Order) {
 }
 
 @Composable
-fun OrderItemRow(item: InternetItem, quantity: Int) {
+fun OrderItemRow(item: com.grocart.first.data.CartItemResponse, quantity: Int) {
+    val discountedUnitPrice = item.itemPrice * 75 / 100
+    val lineTotal = discountedUnitPrice * quantity
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -304,12 +350,12 @@ fun OrderItemRow(item: InternetItem, quantity: Int) {
         ) {
             Text(text = item.itemName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
             Text(
-                text = "Qty: $quantity",
+                text = "${quantity}x ₹$discountedUnitPrice each",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Text(text = "₹${(item.itemPrice * 75 / 100) * quantity}", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        Text(text = "₹$lineTotal", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

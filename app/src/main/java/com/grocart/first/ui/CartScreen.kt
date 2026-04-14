@@ -154,10 +154,9 @@ fun CartScreen(
                 handlingCharge = paymentHandlingCharge,
                 deliveryFee = paymentDeliveryFee,
                 groViewModel = groViewModel,
-                onPaymentConfirmed = { _, finalTotal, _ ->
-                    // Order logic: completePayment doesn't clear cart anymore, placeOrder does it after Firebase sync
+                onPaymentConfirmed = { _, finalTotal, couponDiscount ->
                     groViewModel.completePayment()
-                    groViewModel.placeOrder(finalTotal)
+                    groViewModel.placeOrder(finalTotal, couponDiscount)
                     onHomeButtonClicked()
                 },
                 onBack = { groViewModel.cancelPayment() }
